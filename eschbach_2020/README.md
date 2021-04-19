@@ -1,2 +1,3 @@
 # neural_nets
- NN from Ashock and MIchael
+ NN from Ashock and Michael
+
