@@ -52,6 +52,10 @@ class Connectivity(object):
             self.neurons_names, self.matrix = nn_utils.both_hemispheres_connectivity(
                 f"{path}", cutoff_hemisphere_connections
             )
+        elif method == "full_with_autapses":
+            self.neurons_names, self.matrix = nn_utils.both_hemispheres_connectivity_allow_autapses(
+                f"{path}", cutoff_hemisphere_connections
+            )
         else:
             print("Method parameter is wrong.\n")
             return None
@@ -127,15 +131,16 @@ class Connectivity(object):
         # Get compartment names
         self.compartments = np.unique(
             [
-                name[-2]
+                name[-2:]
                 for name in np.append(
                     self.names["mbon_no_lr"], self.names["mbin_no_lr"]
                 )
             ]
         )
+
         for comp_name in self.compartments:
             self.indices[comp_name] = [
-                comp_name in name[-2] for name in self.sorted_neurons_names
+                comp_name in name for name in self.neurons_names
             ]
 
         # Get initial connectivity values (from EM; i.e. Wmm0, Wmd0...),
@@ -261,50 +266,79 @@ if __name__ == "__main__":
 
     print("CWD: ", os.getcwd())
     file_path = os.getcwd() + "/eschbach_2020/data"
-    file_path = '/Users/ngc/Documents/GitHub/neural_nets/eschbach_2020/data'
-    conn = Connectivity(file_path, method="full", print_dict_keys=False)
+    file_path = '/home/ngc/Documents/GitHub/neural_nets/eschbach_2020/data'
+    conn = Connectivity(file_path, method="full_with_autapses", print_dict_keys=False)
+    conn_avg = Connectivity(file_path, method='ashock_2020')
     # plt.imshow((conn.J['mm'].data.numpy()))
     # plt.show()
-    fig = plt.figure('ciao')
-    fig.add_subplot(121)
-    plt.title('scaled')
-    plt.imshow(conn.J['md'].data.numpy(), interpolation='none')
-    plt.xlabel('mbins')
-    plt.ylabel('mbons')
-    fig.add_subplot(122)
-    plt.title('original')
-    plt.imshow(conn.W['md0'], interpolation='none')
-    plt.xlabel('mbins')
-    plt.show()
+    # fig = plt.figure('recap full')
+    # fig.add_subplot(221)
+    # plt.title('scaled')
+    # plt.imshow(conn.J['dd'].data.numpy(), interpolation='none')
+    # plt.xlabel('mbons')
+    # plt.ylabel('mbons')
+    # fig.add_subplot(222)
+    # plt.title('original')
+    # plt.imshow(conn.W['dd0']**.5, interpolation='none')
+    # plt.grid()
 
-
-    # plt.figure('33')
-    # plt.imshow(conn.matrix[:, conn.indices['inhibitory_mbon']])
+    # fig.add_subplot(223)
+    # plt.title('avg_scaled')
+    # plt.imshow(conn_avg.J['dd'].data.numpy(), interpolation='none')
+    # plt.xlabel('mbons')
+    # plt.ylabel('mbons')
+    # fig.add_subplot(224)
+    # plt.title('avg_original')
+    # plt.imshow(conn_avg.W['dd0']**.5, interpolation='none')
+    # plt.grid()
+    # plt.xlabel('mbins')
     # plt.show()
 
-    # plt.imshow(conn.J['mm'][:, conn.indices['inhibitory_mbon']]>0)
-    # # taglio via delle connessioni se definisco i constraint in quel modo
-    # #(tipo relu)
-    # plt.show()
+    # check strange symmetry in DANS
 
-# #%%
-#     import numpy as np
-#     import torch
 
-#     a, b = torch.ones((2), requires_grad=True), \
-#             torch.ones((2), requires_grad=True)
-#     target = 50 * torch.ones((2), requires_grad=True)
-#     c =  [a, b]
-#     opt = torch.optim.RMSprop(c, lr=1)
+    dan_top_full = conn.W['mm0']
+    dan_bot_full = conn.W['mm0']
 
-#     for i in range(2):
-#         print('\n')
-#         print(c)
-#         print(a)
-#         loss = torch.sum(torch.pow(a + b - target, 2))
-#         loss.backward(retain_graph=True) # why retain_graph?
-#         opt.step()
-#         opt.zero_grad()
-#         a.data = a.data +  1
-#         print('\n')
-#         print(c)
+    asymm_index = nn_utils.symmetry_index(conn.W['mm0'])
+    print('MBONS submatrix asymmetry: ', np.round(asymm_index, 2))
+    asymm_index = nn_utils.symmetry_index(conn.W['dd0'])
+    print('MBINS submatrix asymmetry: ', np.round(asymm_index, 2))
+    asymm_index = nn_utils.symmetry_index(conn.W['ff0'])
+    print('FB/FF submatrix asymmetry: ', np.round(asymm_index, 2))
+    asymm_index = nn_utils.symmetry_index(conn.matrix)
+    print('Full connectivity matrix asymmetry: ', np.round(asymm_index, 2))
+    print('Averaged import:')
+    asymm_index = nn_utils.symmetry_index(conn_avg.W['mm0'])
+    print('MBONS submatrix asymmetry: ', np.round(asymm_index, 2))
+    asymm_index = nn_utils.symmetry_index(conn_avg.W['dd0'])
+    print('MBINS submatrix asymmetry: ', np.round(asymm_index, 2))
+    asymm_index = nn_utils.symmetry_index(conn_avg.W['ff0'])
+    print('FB/FF submatrix asymmetry: ', np.round(asymm_index, 2))
+    asymm_index = nn_utils.symmetry_index(conn_avg.matrix)
+    print('AVG connectivity matrix asymmetry: ', np.round(asymm_index, 2))
+    
+    print('')
+
+    sparsity = nn_utils.sparsity_index(conn.W['mm0'])
+    print('MBONS submatrix sparsity: ', np.round(sparsity, 2))
+    sparsity = nn_utils.sparsity_index(conn.W['dd0'])
+    print('MBINS submatrix sparsity: ', np.round(sparsity, 2))
+    sparsity = nn_utils.sparsity_index(conn.W['ff0'])
+    print('FB/FF submatrix sparsity: ', np.round(sparsity, 2))
+    sparsity = nn_utils.sparsity_index(conn.matrix)
+    print('Full connectivity matrix sparsity: ', np.round(sparsity, 2))
+    print('Averaged import:')
+    sparsity = nn_utils.sparsity_index(conn_avg.W['mm0'])
+    print('MBONS submatrix sparsity: ', np.round(sparsity, 2))
+    sparsity = nn_utils.sparsity_index(conn_avg.W['dd0'])
+    print('MBINS submatrix sparsity: ', np.round(sparsity, 2))
+    sparsity = nn_utils.sparsity_index(conn_avg.W['ff0'])
+    print('FB/FF submatrix sparsity: ', np.round(sparsity, 2))
+    sparsity = nn_utils.sparsity_index(conn_avg.matrix)
+    print('AVG connectivity matrix sparsity: ', np.round(sparsity, 2))
+
+    #selected compartment = 'a1'
+
+             
+

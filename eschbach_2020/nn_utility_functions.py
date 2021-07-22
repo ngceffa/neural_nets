@@ -1,5 +1,5 @@
-import torch
-from torch import from_numpy as from_np
+# import torch
+# from torch import from_numpy as from_np
 import numpy as np
 import matplotlib.pyplot as plt
 from itertools import product
@@ -103,7 +103,10 @@ def filtered_average_connectivity(
     ):
 
     csv_connectivity = np.genfromtxt(
-        f"{path}/connectivityMatrix.csv", dtype=np.uint8, delimiter=",", skip_header=1
+        f"{path}/connectivityMatrix.csv",
+        dtype=np.uint8,
+        delimiter=",",
+        skip_header=1
     )
     connectivity_total = np.delete(csv_connectivity, 0, axis=1)
     # change pre->post to post->pre (very important to be consistent)
@@ -141,6 +144,8 @@ def filtered_average_connectivity(
     ]
     connectivity_left = connectivity_left_left + connectivity_left_right
     connectivity_right = connectivity_right_left + connectivity_right_right
+
+    
     # Reduce the connectivity matrix:
     #   - hemi-hemi or hemi-other_hemisphere connections must be
     #        more than 2 for each neuron
@@ -161,7 +166,7 @@ def filtered_average_connectivity(
     return left_neurons_names, connectivity
 
 
-def both_hemispheres_connectivity(path, cutoff=2):
+def both_hemispheres_connectivity(path, cutoff=3):
 
     csv_connectivity = np.genfromtxt(
         f"{path}/connectivityMatrix.csv", dtype=np.uint8, delimiter=",", skip_header=1
@@ -200,10 +205,52 @@ def both_hemispheres_connectivity(path, cutoff=2):
         np.amax(np.diag(connectivity)),
         ".",
     )
-    np.fill_diagonal(connectivity, 0)
+    np.fill_diagonal(connectivity, 0) # reject autapses
 
     return neuron_names, connectivity
 
+def both_hemispheres_connectivity_allow_autapses(path, cutoff=3):
+
+    csv_connectivity = np.genfromtxt(
+        f"{path}/connectivityMatrix.csv", dtype=np.uint8, delimiter=",", skip_header=1
+    )
+    connectivity_total = np.delete(csv_connectivity, 0, axis=1)
+    # change pre->post to post->pre
+    connectivity_total = connectivity_total.T
+    neuron_names = np.genfromtxt(
+        f"{path}/connectivityMatrix.csv",
+        dtype=np.unicode_,
+        delimiter=",",
+        skip_header=1,
+        usecols=(0),
+    ).tolist()
+    neuron_names = [name.strip('"') for name in neuron_names]
+
+    left_neurons_indices = [("LEFT" in name) for name in neuron_names]
+    right_neurons_indices = [("RIGHT" in name) for name in neuron_names]
+    single_neurons_indices = [("SINGLE" in name) for name in neuron_names]
+    left_neurons_names = [
+        name.replace(" LEFT", "") for name in neuron_names if ("LEFT" in name)
+    ]
+    right_neurons_names = [
+        name.replace(" RIGHT", "") for name in neuron_names if ("RIGHT" in name)
+    ]
+    single_neurons_names = [
+        name.replace(" SINGLE", "") for name in neuron_names if ("SINGLE" in name)
+    ]
+    assert left_neurons_names == right_neurons_names
+    # Get connectivity values (between and within hemispheres)
+    # onlly reliable connections (usually if > 2):
+    connectivity = connectivity_total[:, :] * (connectivity_total[:, :] > cutoff)
+    # disregard autapses:
+    # print(
+    #     "\nAutapses are ignored. Max autapses value was",
+    #     np.amax(np.diag(connectivity)),
+    #     ".",
+    # )
+    # np.fill_diagonal(connectivity, 0) # reject autapses
+
+    return neuron_names, connectivity
 
 def first_order_trial(
     valence,
@@ -670,6 +717,20 @@ def extrapolated_connectivity(
 
     return None
 
+def sparsity_index(matrix):
+    M, N = matrix.shape[0], matrix.shape[1]
+    nulls = 0
+    for i in range(M):
+        for j in range(N):
+            if matrix[i, j] == 0:
+                nulls +=1
+    return nulls/(M*N)
+
+def symmetry_index(matrix):
+    symm = .5 * (matrix + np.transpose(matrix))
+    asymm = .5 * (matrix - np.transpose(matrix))
+    index = np.linalg.norm(asymm) / np.linalg.norm(symm)
+    return index
 
 if __name__ == "__main__":
     file_path = os.getcwd() + "/mb_modeling/eschbach2020/refactored_code/data"
